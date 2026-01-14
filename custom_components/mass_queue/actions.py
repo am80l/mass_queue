@@ -439,7 +439,7 @@ class MassQueueActions:
     def format_track_item(self, track_item: dict) -> TRACK_ITEM_SCHEMA:
         """Process an individual track item."""
         result = self.format_item(track_item)
-        media_album = track_item.get("album") or "N/A"
+        media_album = track_item.get("album")
         media_album_name = "" if media_album is None else media_album.get("name", "")
         artists = track_item["artists"]
         artist_names = [artist["name"] for artist in artists]
