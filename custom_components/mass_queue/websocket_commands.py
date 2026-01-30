@@ -25,7 +25,6 @@ from .utils import (
         vol.Required("entity_id"): str,
     },
 )
-@websocket_api.async_response
 def api_get_entity_info(
     hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
