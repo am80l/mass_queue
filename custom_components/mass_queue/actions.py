@@ -36,6 +36,7 @@ from .const import (
     ATTR_MEDIA_TITLE,
     ATTR_OFFSET,
     ATTR_PLAYER_ENTITY,
+    ATTR_PLAYING,
     ATTR_POSITION,
     ATTR_PROVIDERS,
     ATTR_QUEUE_ID,
@@ -100,11 +101,11 @@ class MassQueueActions:
         self._config_entry = config_entry
         self._download_local = config_entry.options.get(CONF_DOWNLOAD_LOCAL)
 
-    def setup_controller(self):
+    async def setup_controller(self):
         """Setup Music Assistant controller."""
         self._controller.update_players()
         self._controller.subscribe_events()
-        self._hass.loop.create_task(self._controller.update_queues())
+        await self._controller.update_queues()
 
     @callback
     def register_actions(self) -> None:
@@ -198,7 +199,7 @@ class MassQueueActions:
         queue_id = self.get_queue_id(entity_id)
         return await self._client.player_queues.get_active_queue(queue_id)
 
-    async def _format_queue_item(self, queue_item: dict) -> dict:
+    async def _format_queue_item(self, queue_item: dict, *, playing: bool = False) -> dict:
         """Format list of queue items for response."""
         media = queue_item["media_item"]
 
@@ -223,6 +224,7 @@ class MassQueueActions:
                 ATTR_MEDIA_CONTENT_ID: media_content_id,
                 ATTR_MEDIA_IMAGE: media_image,
                 ATTR_FAVORITE: favorite,
+                ATTR_PLAYING: playing,
             },
         )
         if local_image_encoded:
@@ -279,8 +281,15 @@ class MassQueueActions:
             limit = DEFAULT_QUEUE_ITEMS_LIMIT
         offset = max(offset, 0)
         queue_items = await self._controller.player_queue(queue_id, limit, offset)
+        response_items = [
+            await self._format_queue_item(
+                item,
+                playing=(offset + position) == idx,
+            )
+            for position, item in enumerate(queue_items)
+        ]
         response: ServiceResponse = {
-            entity_id: [await self._format_queue_item(item) for item in queue_items],
+            entity_id: response_items,
         }
         return response
 
@@ -525,5 +534,5 @@ async def setup_controller_and_actions(
 ) -> MassQueueActions:
     """Initialize client and actions class, add actions to Home Assistant."""
     actions = MassQueueActions(hass, mass_client, entry)
-    actions.setup_controller()
+    await actions.setup_controller()
     return actions

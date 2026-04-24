@@ -196,7 +196,13 @@ class MassQueueController:
         offset: int = DEFAULT_QUEUE_ITEMS_OFFSET,
     ):
         """Get the cached queue items for a single queue."""
-        queue = self.queues.get(queue_id)
+        queue = self.queues.get(queue_id, None)
+        if queue is None:
+            LOGGER.debug(
+                "Queue %s missing from cache, fetching from Music Assistant.",
+                queue_id,
+            )
+            queue = self.queues.prime(queue_id, await self.get_queue(queue_id))
         if offset == -1:
             try:
                 offset = await self.get_queue_index(queue_id) - 5
@@ -321,32 +327,48 @@ class Queues:
         queues: dict | None = None,
     ):
         """Initialize class."""
-        self.queues = self.batch_add(queues) if queues else {}
+        self.queues = {}
         self._hass = hass
         self._config_entry = config_entry
         self._download_local = config_entry.options.get(CONF_DOWNLOAD_LOCAL)
         self._client = client
+        if queues:
+            self.batch_add(queues)
 
-    def get(self, queue_id):
+    def get(self, queue_id, default=None):
         """Returns cached queue records."""
-        return self.queues.get(queue_id, [])
+        return self.queues.get(queue_id, default)
 
-    def add(self, queue_id: str, queue_items: int):
+    def normalize_queue_items(self, queue_items: list):
+        """Convert queue items to plain dictionaries for immediate caching."""
+        return [
+            item if isinstance(item, dict) else item.to_dict()
+            for item in queue_items
+        ]
+
+    def prime(self, queue_id: str, queue_items: list):
+        """Immediately cache queue items before asynchronous image processing."""
+        normalized_items = self.normalize_queue_items(queue_items)
+        self.queues[queue_id] = normalized_items
+        self.process_queue_images(normalized_items, queue_id)
+        return normalized_items
+
+    def add(self, queue_id: str, queue_items: list):
         """Adds a single queue."""
-        self.process_queue_images(queue_items, queue_id)
+        self.prime(queue_id, queue_items)
         event_data = {"type": "queue_added", "data": {"queue_id": queue_id}}
         self.send_ha_event(event_data)
 
     def batch_add(self, queues):
         """Adds multiple queues at once."""
         for k, v in queues.items():
-            self.process_queue_images(v, k)
+            self.prime(k, v)
         event_data = {"type": "queues_added", "data": {"queue_id": list(queues.keys())}}
         self.send_ha_event(event_data)
 
     def update(self, queue_id, queue_items):
         """Updates queue items in record."""
-        self.queues[queue_id] = self.process_queue_images(queue_items, queue_id)
+        self.prime(queue_id, queue_items)
         event_data = {"type": "queue_updated", "data": {"queue_id": queue_id}}
         self.send_ha_event(event_data)
 

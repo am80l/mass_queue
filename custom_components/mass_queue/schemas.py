@@ -23,6 +23,7 @@ from .const import (
     ATTR_OFFSET,
     ATTR_PAGE,
     ATTR_PLAYER_ENTITY,
+    ATTR_PLAYING,
     ATTR_PLAYLIST_ID,
     ATTR_POSITION,
     ATTR_POSITIONS_TO_REMOVE,
@@ -54,6 +55,7 @@ QUEUE_ITEM_SCHEMA = vol.Schema(
         vol.Required(ATTR_MEDIA_CONTENT_ID): str,
         vol.Required(ATTR_MEDIA_IMAGE): str,
         vol.Required(ATTR_FAVORITE): bool,
+        vol.Required(ATTR_PLAYING): bool,
         vol.Optional(ATTR_LOCAL_IMAGE_ENCODED): str,
     },
 )
